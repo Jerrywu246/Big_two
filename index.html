@@ -1,0 +1,1406 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大老二</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700;900&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+
+  :root {
+    --felt: #1a4a2e;
+    --felt-light: #235c39;
+    --felt-dark: #0f2e1c;
+    --gold: #c9a84c;
+    --gold-light: #e8c96a;
+    --card-bg: #fdf8f0;
+    --card-shadow: rgba(0,0,0,0.45);
+    --red: #c0392b;
+    --black: #1a1a1a;
+    --text-light: #f0e8d0;
+    --text-muted: #8ab89a;
+    --btn-play: #c9a84c;
+    --btn-pass: #4a3f35;
+    --selected-glow: #ffe066;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans TC', sans-serif;
+    background: var(--felt-dark);
+    color: var(--text-light);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    user-select: none;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255,255,255,0.015) 2px, rgba(255,255,255,0.015) 4px),
+      repeating-linear-gradient(-45deg, transparent, transparent 2px, rgba(255,255,255,0.01) 2px, rgba(255,255,255,0.01) 4px);
+    pointer-events: none;
+  }
+
+  #game-root {
+    width: 100%;
+    max-width: 900px;
+    height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    grid-template-columns: 1fr;
+    padding: 8px 12px;
+    gap: 6px;
+    position: relative;
+  }
+
+  #opponent-area {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 4px 0;
+  }
+
+  .opponent-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .opponent-name {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .opponent-name.active {
+    color: var(--gold-light);
+    font-weight: 700;
+  }
+
+  .opponent-cards {
+    display: flex;
+    height: 52px;
+    position: relative;
+  }
+
+  .opponent-card-back {
+    width: 26px;
+    height: 44px;
+    border-radius: 5px;
+    background: linear-gradient(135deg, #1e5c8a 0%, #0d3a5c 50%, #1e5c8a 100%);
+    border: 1.5px solid rgba(255,255,255,0.2);
+    margin-left: -10px;
+    box-shadow: 1px 1px 4px rgba(0,0,0,0.5);
+    flex-shrink: 0;
+  }
+
+  .opponent-card-back:first-child { margin-left: 0; }
+
+  .opponent-card-back::after {
+    content: '';
+    display: block;
+    margin: 4px;
+    height: calc(100% - 8px);
+    border-radius: 3px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: repeating-linear-gradient(
+      45deg, transparent, transparent 2px,
+      rgba(255,255,255,0.04) 2px, rgba(255,255,255,0.04) 4px
+    );
+  }
+
+  .opponent-count {
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  #table-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    position: relative;
+  }
+
+  #table-area::before {
+    content: '';
+    position: absolute;
+    inset: -10px -40px;
+    background: radial-gradient(ellipse at center, var(--felt-light) 0%, var(--felt) 60%, transparent 85%);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #status-bar {
+    font-size: 12px;
+    color: var(--gold-light);
+    letter-spacing: 0.06em;
+    z-index: 1;
+    min-height: 18px;
+    text-align: center;
+  }
+
+  #table-cards {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 4px;
+    min-height: 90px;
+    z-index: 1;
+    position: relative;
+  }
+
+  #last-player-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    z-index: 1;
+    min-height: 16px;
+  }
+
+  #player-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 6px;
+  }
+
+  #my-hand {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 3px;
+    min-height: 96px;
+    align-items: flex-end;
+  }
+
+  .card {
+    width: 54px;
+    height: 82px;
+    border-radius: 7px;
+    background: var(--card-bg);
+    border: 1.5px solid rgba(0,0,0,0.18);
+    box-shadow: 2px 3px 8px var(--card-shadow);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 4px 5px;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .card:hover { transform: translateY(-6px); box-shadow: 2px 8px 16px var(--card-shadow); }
+
+  .card.selected {
+    transform: translateY(-14px);
+    box-shadow: 0 0 0 2px var(--selected-glow), 2px 12px 20px var(--card-shadow);
+  }
+
+  .card .corner { font-size: 13px; font-weight: 700; line-height: 1; font-family: 'Noto Serif TC', serif; }
+  .card .corner.bottom { transform: rotate(180deg); align-self: flex-end; }
+  .card .center { font-size: 22px; text-align: center; line-height: 1; }
+  .card.red .corner, .card.red .center { color: var(--red); }
+  .card.black .corner, .card.black .center { color: var(--black); }
+
+  #table-cards .card {
+    width: 58px;
+    height: 88px;
+    cursor: default;
+  }
+  #table-cards .card:hover { transform: none; }
+
+  #btn-row {
+    display: flex;
+    gap: 12px;
+  }
+
+  .btn {
+    font-family: 'Noto Sans TC', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 10px 32px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .btn:not(:disabled):active { transform: scale(0.96); }
+
+  #btn-play {
+    background: var(--gold);
+    color: #1a1a1a;
+  }
+  #btn-play:not(:disabled):hover { background: var(--gold-light); }
+
+  #btn-pass {
+    background: var(--btn-pass);
+    color: var(--text-light);
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+  #btn-pass:not(:disabled):hover { background: #5a4f45; }
+
+  #btn-peek {
+    background: #2d5a4a;
+    color: var(--text-light);
+    border: 1px solid rgba(255,255,255,0.2);
+    font-size: 12px;
+    padding: 8px 16px;
+    letter-spacing: 0.06em;
+  }
+  #btn-peek:not(:disabled):hover { background: #3a7260; }
+  #btn-peek.active {
+    background: var(--gold);
+    color: #1a1a1a;
+    border-color: transparent;
+  }
+
+  .opponent-cards.peek-hands {
+    flex-wrap: wrap;
+    height: auto;
+    max-height: 200px;
+    overflow-y: auto;
+    justify-content: center;
+    gap: 2px;
+    padding: 4px 0;
+  }
+  .opponent-cards.peek-hands .card {
+    width: 40px;
+    height: 62px;
+    font-size: 10px;
+    cursor: default;
+    margin-left: 0;
+  }
+  .opponent-cards.peek-hands .card .center { font-size: 16px; }
+  .opponent-cards.peek-hands .card .corner { font-size: 10px; }
+
+  #overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 20px;
+  }
+  #overlay.show { display: flex; }
+
+  #overlay-box {
+    background: #1e3828;
+    border: 2px solid var(--gold);
+    border-radius: 16px;
+    padding: 36px 52px;
+    text-align: center;
+    max-width: 360px;
+    width: 90%;
+  }
+
+  #overlay-title {
+    font-family: 'Noto Serif TC', serif;
+    font-size: 26px;
+    font-weight: 900;
+    color: var(--gold-light);
+    margin-bottom: 20px;
+  }
+
+  .ranking-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    font-size: 14px;
+  }
+  .ranking-row .medal { font-size: 18px; margin-right: 8px; }
+
+  #btn-restart {
+    margin-top: 20px;
+    background: var(--gold);
+    color: #1a1a1a;
+    font-family: 'Noto Sans TC', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    padding: 12px 40px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+  }
+  #btn-restart:hover { background: var(--gold-light); }
+
+  .pass-anim {
+    position: fixed;
+    font-size: 22px;
+    font-weight: 900;
+    color: #ff6b6b;
+    pointer-events: none;
+    z-index: 50;
+    animation: floatUp 0.8s ease forwards;
+  }
+  @keyframes floatUp {
+    0%   { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-50px); }
+  }
+
+  .active-player-indicator {
+    position: absolute;
+    inset: -4px;
+    border-radius: 10px;
+    border: 2px solid var(--gold);
+    animation: pulse 1s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+  @keyframes pulse {
+    from { opacity: 0.4; }
+    to   { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div id="game-root">
+  <div id="opponent-area">
+    <div class="opponent-slot" id="slot-1">
+      <div class="opponent-name" id="name-1">玩家 B</div>
+      <div class="opponent-cards" id="hand-1"></div>
+      <div class="opponent-count" id="count-1">13 張</div>
+    </div>
+    <div class="opponent-slot" id="slot-2">
+      <div class="opponent-name" id="name-2">玩家 C</div>
+      <div class="opponent-cards" id="hand-2"></div>
+      <div class="opponent-count" id="count-2">13 張</div>
+    </div>
+    <div class="opponent-slot" id="slot-3">
+      <div class="opponent-name" id="name-3">玩家 D</div>
+      <div class="opponent-cards" id="hand-3"></div>
+      <div class="opponent-count" id="count-3">13 張</div>
+    </div>
+  </div>
+
+  <div id="table-area">
+    <div id="status-bar">發牌中...</div>
+    <div id="table-cards"></div>
+    <div id="last-player-label"></div>
+  </div>
+
+  <div id="player-area">
+    <div id="my-hand"></div>
+    <div id="btn-row">
+      <button class="btn" id="btn-play" disabled>出　牌</button>
+      <button class="btn" id="btn-pass" disabled>Pass</button>
+      <button type="button" class="btn" id="btn-peek" title="測試用：顯示/隱藏 AI 手牌">偷看 AI</button>
+    </div>
+  </div>
+</div>
+
+<div id="overlay">
+  <div id="overlay-box">
+    <div id="overlay-title">遊戲結束</div>
+    <div id="ranking-list"></div>
+    <button id="btn-restart">再來一局</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════════════════
+const SUIT_CHAR  = ['♣','♦','♥','♠'];
+const RANK_LABEL = ['3','4','5','6','7','8','9','10','J','Q','K','A','2'];
+const PLAYER_NAMES = ['你', '玩家 B', '玩家 C', '玩家 D'];
+const FIVE_TYPE_RANK = { STRAIGHT:0, FLUSH:1, FULL_HOUSE:2, FOUR_OF_A_KIND:3, STRAIGHT_FLUSH:4 };
+
+// ═══════════════════════════════════════════════════════════
+//  DECK MODULE
+// ═══════════════════════════════════════════════════════════
+const DeckModule = (() => {
+  function createDeck() {
+    const d = [];
+    for (let r = 0; r < 13; r++)
+      for (let s = 0; s < 4; s++)
+        d.push({ rank: r, suit: s });
+    return d;
+  }
+  function shuffle(deck) {
+    const d = [...deck];
+    for (let i = d.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [d[i], d[j]] = [d[j], d[i]];
+    }
+    return d;
+  }
+  function cardSort(a, b) { return (a.rank * 4 + a.suit) - (b.rank * 4 + b.suit); }
+  return { createDeck, shuffle, cardSort };
+})();
+
+// ═══════════════════════════════════════════════════════════
+//  HAND EVALUATOR
+// ═══════════════════════════════════════════════════════════
+const HandEvaluator = (() => {
+
+  function isStraight(sorted5) {
+    if (sorted5.some(c => c.rank === 12)) return false;
+    for (let i = 1; i < 5; i++) {
+      if (sorted5[i].rank !== sorted5[i-1].rank + 1) return false;
+    }
+    return true;
+  }
+
+  function getRankCounts(cards) {
+    const cnt = {};
+    cards.forEach(c => { cnt[c.rank] = (cnt[c.rank] || 0) + 1; });
+    return cnt;
+  }
+
+  function maxCardInFlush(cards) {
+    return cards.reduce((best, c) => {
+      if (c.rank > best.rank) return c;
+      if (c.rank === best.rank && c.suit > best.suit) return c;
+      return best;
+    });
+  }
+
+  function evaluate(cards) {
+    const INVALID = { isValid: false };
+    if (!cards || cards.length === 0) return INVALID;
+    const n = cards.length;
+    const sorted = [...cards].sort((a,b) => a.rank - b.rank);
+
+    if (n === 1) {
+      return { type:'SINGLE', isValid:true, length:1,
+        primaryRank: sorted[0].rank, secondaryRank:-1,
+        suitMax: sorted[0].suit };
+    }
+
+    if (n === 2) {
+      if (sorted[0].rank !== sorted[1].rank) return INVALID;
+      return { type:'PAIR', isValid:true, length:2,
+        primaryRank: sorted[0].rank, secondaryRank:-1,
+        suitMax: Math.max(sorted[0].suit, sorted[1].suit) };
+    }
+
+    if (n === 3) {
+      if (sorted[0].rank !== sorted[1].rank || sorted[1].rank !== sorted[2].rank) return INVALID;
+      return { type:'TRIPLE', isValid:true, length:3,
+        primaryRank: sorted[0].rank, secondaryRank:-1,
+        suitMax: Math.max(...sorted.map(c=>c.suit)) };
+    }
+
+    if (n === 5) {
+      const cnt = getRankCounts(sorted);
+      const entries = Object.entries(cnt).map(([r,c])=>({rank:+r,count:c})).sort((a,b)=>b.count-a.count||b.rank-a.rank);
+      const allSameSuit = sorted.every(c => c.suit === sorted[0].suit);
+      const straight    = isStraight(sorted);
+
+      if (allSameSuit && straight) {
+        const mc = maxCardInFlush(sorted);
+        return { type:'STRAIGHT_FLUSH', isValid:true, length:5,
+          primaryRank: mc.rank, secondaryRank:-1, suitMax: mc.suit };
+      }
+      if (entries[0].count === 4) {
+        return { type:'FOUR_OF_A_KIND', isValid:true, length:5,
+          primaryRank: entries[0].rank, secondaryRank: entries[1].rank, suitMax:-1 };
+      }
+      if (entries[0].count === 3 && entries[1].count === 2) {
+        return { type:'FULL_HOUSE', isValid:true, length:5,
+          primaryRank: entries[0].rank,
+          secondaryRank: entries[1].rank,
+          suitMax:-1 };
+      }
+      if (allSameSuit) {
+        const mc = maxCardInFlush(sorted);
+        return { type:'FLUSH', isValid:true, length:5,
+          primaryRank: mc.rank, secondaryRank:-1, suitMax: mc.suit };
+      }
+      if (straight) {
+        return { type:'STRAIGHT', isValid:true, length:5,
+          primaryRank: sorted[4].rank, secondaryRank:-1,
+          suitMax: sorted[4].suit };
+      }
+      return INVALID;
+    }
+
+    return INVALID;
+  }
+
+  function compare(htA, htB) {
+    if (htA.length === 5) {
+      const ra = FIVE_TYPE_RANK[htA.type];
+      const rb = FIVE_TYPE_RANK[htB.type];
+      if (ra !== rb) return ra > rb ? 1 : -1;
+    }
+    if (htA.primaryRank !== htB.primaryRank) return htA.primaryRank > htB.primaryRank ? 1 : -1;
+    if (htA.secondaryRank !== htB.secondaryRank) return htA.secondaryRank > htB.secondaryRank ? 1 : -1;
+    if (htA.suitMax !== htB.suitMax) return htA.suitMax > htB.suitMax ? 1 : -1;
+    return 0;
+  }
+
+  return { evaluate, compare };
+})();
+
+// ═══════════════════════════════════════════════════════════
+//  AI MODULE — 決策規則 v5.0
+// ═══════════════════════════════════════════════════════════
+const AIModule = (() => {
+
+  const BIG_HAND_POWER = { FOUR_OF_A_KIND: 1, STRAIGHT_FLUSH: 2 };
+
+  const BASE_SCORE = {
+    STRAIGHT_FLUSH: 500,
+    FOUR_OF_A_KIND: 400,
+    FULL_HOUSE: 200,
+    STRAIGHT: 150,
+    FLUSH: 150,
+    TRIPLE: 100,
+    PAIR: 80,
+    SINGLE: 0
+  };
+
+  function rankWeight(rank) {
+    if (rank === 12) return 100;
+    if (rank === 11) return 80;
+    if (rank === 10) return 60;
+    if (rank === 9 || rank === 8) return 40;
+    if (rank >= 5 && rank <= 7) return 20;
+    return 0;
+  }
+
+  function cardKey(c) { return c.rank * 4 + c.suit; }
+
+  function combinations(arr, k) {
+    if (k === 0) return [[]];
+    if (arr.length < k) return [];
+    const [first, ...rest] = arr;
+    const withFirst = combinations(rest, k - 1).map(c => [first, ...c]);
+    const withoutFirst = combinations(rest, k);
+    return [...withFirst, ...withoutFirst];
+  }
+
+  function removeCards(hand, play) {
+    const keys = new Set(play.map(cardKey));
+    return hand.filter(c => !keys.has(cardKey(c)));
+  }
+
+  function hasSameCards(a, b) {
+    if (a.length !== b.length) return false;
+    const ka = a.map(cardKey).sort((x, y) => x - y).join(',');
+    const kb = b.map(cardKey).sort((x, y) => x - y).join(',');
+    return ka === kb;
+  }
+
+  function comboBase(ht) {
+    if (!ht || !ht.isValid) return 0;
+    return BASE_SCORE[ht.type] != null ? BASE_SCORE[ht.type] : 0;
+  }
+
+  function totalComboScore(cards) {
+    const ht = HandEvaluator.evaluate(cards);
+    if (!ht.isValid) return -Infinity;
+    let s = comboBase(ht);
+    cards.forEach(c => { s += rankWeight(c.rank); });
+    return s;
+  }
+
+  function modeCoef(handLen) {
+    if (handLen >= 10) return 1.0;
+    if (handLen >= 7) return 1.5;
+    return 2.0;
+  }
+
+  function getMode(handLen) {
+    if (handLen >= 10) return 'defense';
+    if (handLen >= 7) return 'standard';
+    return 'fullspeed';
+  }
+
+  function scoredWithMode(cards, handLen) {
+    return totalComboScore(cards) * modeCoef(handLen);
+  }
+
+  function includesClub3(cards) {
+    return cards.some(c => c.rank === 0 && c.suit === 0);
+  }
+
+  function allValidLeads(hand, mustContainClub3) {
+    const results = [];
+    [1, 2, 3, 5].forEach(n => {
+      combinations(hand, n).forEach(combo => {
+        const ht = HandEvaluator.evaluate(combo);
+        if (!ht.isValid) return;
+        if (mustContainClub3 && !includesClub3(combo)) return;
+        results.push({ cards: combo, ht });
+      });
+    });
+    return results;
+  }
+
+  function generateCandidates(hand, lastHT) {
+    const n = lastHT.length;
+    const results = [];
+    const lastPower = BIG_HAND_POWER[lastHT.type] || 0;
+
+    if (n === 1) {
+      hand.forEach(c => {
+        const ht = HandEvaluator.evaluate([c]);
+        if (HandEvaluator.compare(ht, lastHT) > 0) results.push({ cards: [c], ht });
+      });
+    } else if (n === 2 || n === 3) {
+      combinations(hand, n).forEach(combo => {
+        const ht = HandEvaluator.evaluate(combo);
+        if (ht.isValid && ht.type === lastHT.type && HandEvaluator.compare(ht, lastHT) > 0)
+          results.push({ cards: combo, ht });
+      });
+    } else if (n === 5) {
+      combinations(hand, 5).forEach(combo => {
+        const ht = HandEvaluator.evaluate(combo);
+        if (!ht.isValid) return;
+        const currentPower = BIG_HAND_POWER[ht.type] || 0;
+        if (lastPower > 0) {
+          if (currentPower > lastPower) results.push({ cards: combo, ht });
+          else if (currentPower === lastPower && HandEvaluator.compare(ht, lastHT) > 0) results.push({ cards: combo, ht });
+        } else {
+          if (currentPower > 0) results.push({ cards: combo, ht });
+          else if (ht.type === lastHT.type && HandEvaluator.compare(ht, lastHT) > 0) results.push({ cards: combo, ht });
+        }
+      });
+    }
+    results.sort((a, b) => HandEvaluator.compare(a.ht, b.ht));
+    return results;
+  }
+
+  function validFiveCardCombosFrom(hand) {
+    const out = [];
+    const order = ['STRAIGHT_FLUSH', 'FOUR_OF_A_KIND', 'FULL_HOUSE', 'STRAIGHT', 'FLUSH'];
+    combinations(hand, 5).forEach(combo => {
+      const ht = HandEvaluator.evaluate(combo);
+      if (!ht.isValid) return;
+      if (order.includes(ht.type)) out.push({ cards: combo, ht, pri: order.indexOf(ht.type) });
+    });
+    out.sort((a, b) => a.pri - b.pri || HandEvaluator.compare(a.ht, b.ht));
+    return out;
+  }
+
+  function validPairsFrom(hand) {
+    const out = [];
+    combinations(hand, 2).forEach(combo => {
+      const ht = HandEvaluator.evaluate(combo);
+      if (ht.isValid && ht.type === 'PAIR') out.push({ cards: combo, ht });
+    });
+    return out;
+  }
+
+  function findContainingCombo(hand, playCards) {
+    const htPlay = HandEvaluator.evaluate(playCards);
+    if (!htPlay.isValid) return null;
+
+    if (playCards.length === 5 && htPlay.isValid) {
+      return playCards;
+    }
+
+    if (playCards.length === 2 && htPlay.type === 'PAIR') {
+      return playCards;
+    }
+    if (playCards.length === 3 && htPlay.type === 'TRIPLE') {
+      return playCards;
+    }
+
+    if (playCards.length === 1) {
+      const c = playCards[0];
+      const same = hand.filter(x => x.rank === c.rank);
+      if (same.length >= 2) {
+        const pair = same.slice(0, 2);
+        return pair;
+      }
+      let best = null;
+      let bestScore = -1;
+      combinations(hand, 5).forEach(combo => {
+        const ht = HandEvaluator.evaluate(combo);
+        if (!ht.isValid) return;
+        if (!combo.some(x => cardKey(x) === cardKey(c))) return;
+        const sc = totalComboScore(combo);
+        if (sc > bestScore) {
+          bestScore = sc;
+          best = combo;
+        }
+      });
+      return best;
+    }
+
+    return playCards.length > 0 ? playCards : null;
+  }
+
+  function splitCost(hand, playCards) {
+    const ht = HandEvaluator.evaluate(playCards);
+    if (!ht.isValid) return Infinity;
+    const container = findContainingCombo(hand, playCards);
+    if (!container) return 0;
+    if (hasSameCards(container, playCards)) return 0;
+    const total = totalComboScore(container);
+    let kept = 0;
+    container.forEach(c => { kept += rankWeight(c.rank); });
+    return total - kept;
+  }
+
+  function step5LeadableBenefit(handAfter, handLen) {
+    const coef = modeCoef(handLen);
+    let best = 0;
+    combinations(handAfter, 5).forEach(combo => {
+      const ht = HandEvaluator.evaluate(combo);
+      if (!ht.isValid) return;
+      const raw = totalComboScore(combo);
+      if (ht.type === 'STRAIGHT' && raw * coef >= 150 * coef) best = Math.max(best, raw * coef);
+      if (ht.type === 'FULL_HOUSE' && raw * coef >= 200 * coef) best = Math.max(best, raw * coef);
+    });
+    return best;
+  }
+
+  function enumerateAllPartitions(hand) {
+    const solutions = [];
+    const cap = 15000;
+    function dfs(rem, groups) {
+      if (solutions.length >= cap) return;
+      if (rem.length === 0) {
+        solutions.push(groups.map(g => g.slice()));
+        return;
+      }
+      const fives = validFiveCardCombosFrom(rem);
+      const pairs = validPairsFrom(rem);
+      for (const { cards } of fives) {
+        dfs(removeCards(rem, cards), [...groups, cards]);
+      }
+      for (const { cards } of pairs) {
+        dfs(removeCards(rem, cards), [...groups, cards]);
+      }
+      if (fives.length === 0 && pairs.length === 0) {
+        const sorted = [...rem].sort(DeckModule.cardSort);
+        const single = [sorted[0]];
+        dfs(removeCards(rem, single), [...groups, single]);
+      }
+    }
+    dfs(hand, []);
+    return solutions;
+  }
+
+  function leaderFullSpeed(hand, mustClub3) {
+    const leads = allValidLeads(hand, mustClub3);
+    if (leads.length === 0) return null;
+    const parts = enumerateAllPartitions(hand);
+    if (parts.length === 0) {
+      leads.sort((a, b) => totalComboScore(a.cards) - totalComboScore(b.cards));
+      return leads[leads.length - 1].cards;
+    }
+    let minG = Infinity;
+    parts.forEach(p => { if (p.length < minG) minG = p.length; });
+    const minParts = parts.filter(p => p.length === minG);
+    let bestGroup = null;
+    let bestSc = -Infinity;
+    minParts.forEach(pt => {
+      pt.forEach(g => {
+        if (mustClub3 && !includesClub3(g)) return;
+        const ht = HandEvaluator.evaluate(g);
+        if (!ht.isValid) return;
+        const s = totalComboScore(g);
+        if (s > bestSc) {
+          bestSc = s;
+          bestGroup = g.slice();
+        }
+      });
+    });
+    if (bestGroup) {
+      const match = leads.find(l => hasSameCards(l.cards, bestGroup));
+      if (match) return match.cards;
+    }
+    leads.sort((a, b) => totalComboScore(a.cards) - totalComboScore(b.cards));
+    return leads[leads.length - 1].cards;
+  }
+
+  function leaderStandard(hand, mustClub3) {
+    const leads = allValidLeads(hand, mustClub3);
+    if (leads.length === 0) return null;
+    const low = leads.filter(l => l.ht.type === 'SINGLE' && rankWeight(l.cards[0].rank) === 0);
+    if (low.length > 0) {
+      low.sort((a, b) => a.cards[0].rank - b.cards[0].rank);
+      return low[0].cards;
+    }
+    let best = leads[0];
+    let bestVal = scoredWithMode(best.cards, hand.length);
+    for (let i = 1; i < leads.length; i++) {
+      const v = scoredWithMode(leads[i].cards, hand.length);
+      if (v < bestVal) {
+        bestVal = v;
+        best = leads[i];
+      }
+    }
+    return best.cards;
+  }
+
+  function leaderDefense(hand, mustClub3, playedJQKA) {
+    const leads = allValidLeads(hand, mustClub3);
+    const pairs = leads.filter(l => l.ht.type === 'PAIR');
+    const bigStillOut = playedJQKA <= 6;
+    let pool = pairs.filter(p => {
+      const r = p.cards[0].rank;
+      if (bigStillOut) return r >= 0 && r <= 4;
+      return r >= 4 && r <= 6;
+    });
+    if (pool.length === 0) pool = pairs;
+    if (pool.length > 0) {
+      pool.sort((a, b) => a.cards[0].rank - b.cards[0].rank);
+      return pool[0].cards;
+    }
+    const singles = leads.filter(l => l.ht.type === 'SINGLE');
+    if (singles.length > 0) {
+      singles.sort((a, b) => a.cards[0].rank - b.cards[0].rank);
+      return singles[0].cards;
+    }
+    return leads[0] ? leads[0].cards : null;
+  }
+
+  function step6Intercept(candidates, hand) {
+    if (candidates.length === 0) return null;
+    let best = candidates[0].cards;
+    let bestCost = splitCost(hand, best);
+    for (let i = 1; i < candidates.length; i++) {
+      const c = candidates[i].cards;
+      const co = splitCost(hand, c);
+      if (co < bestCost) {
+        bestCost = co;
+        best = c;
+      }
+    }
+    return best;
+  }
+
+  function monsterPassA(hand, playCards, lastHT, mode, opponentHandCount) {
+    if (lastHT.length !== 1 && lastHT.length !== 2) return false;
+    if (mode === 'fullspeed') return false;
+    const cost = splitCost(hand, playCards);
+    if (cost < 150) return false;
+    if (opponentHandCount < 8) return false;
+    return true;
+  }
+
+  function monsterPassB(hand, playCards, lastHT, mode, opponentHandCount) {
+    if (lastHT.length !== 5) return false;
+    if (opponentHandCount <= 2) return false;
+    const cost = splitCost(hand, playCards);
+    if (cost < 400) return false;
+    if (opponentHandCount < 6) return false;
+    return true;
+  }
+
+  function followNonLeader(hand, lastPlay, ctx) {
+    const lastHT = lastPlay.handType;
+    const mode = getMode(hand.length);
+    const lastPlayer = lastPlay.player;
+    const opponentCount = lastPlayer >= 0 ? GS.hands[lastPlayer].length : 13;
+    const nextCount = ctx.nextPlayerHandCount;
+
+    const candidates = generateCandidates(hand, lastHT);
+    if (candidates.length === 0) return null;
+
+    if (nextCount <= 2) {
+      return step6Intercept(candidates, hand);
+    }
+
+    const viable = [];
+    for (const c of candidates) {
+      const passA = monsterPassA(hand, c.cards, lastHT, mode, opponentCount);
+      const passB = monsterPassB(hand, c.cards, lastHT, mode, opponentCount);
+      if (passA || passB) continue;
+      viable.push(c);
+    }
+    if (viable.length === 0) return null;
+
+    if (lastHT.length === 1) {
+      const zeros = viable.filter(c => c.ht.type === 'SINGLE' && rankWeight(c.cards[0].rank) === 0);
+      if (zeros.length > 0) {
+        zeros.sort((a, b) => a.cards[0].rank - b.cards[0].rank);
+        return zeros[0].cards;
+      }
+      if (mode === 'standard' || mode === 'fullspeed') {
+        let bestPlay = null;
+        let bestNet = -Infinity;
+        for (const c of viable) {
+          if (c.ht.type !== 'SINGLE') continue;
+          const rem = removeCards(hand, c.cards);
+          const cost = splitCost(hand, c.cards);
+          const benefit = step5LeadableBenefit(rem, rem.length);
+          if (benefit > cost) {
+            const net = benefit - cost;
+            if (net > bestNet) {
+              bestNet = net;
+              bestPlay = c.cards;
+            }
+          }
+        }
+        if (bestPlay) return bestPlay;
+      }
+      viable.sort((a, b) => HandEvaluator.compare(a.ht, b.ht));
+      return viable[0].cards;
+    }
+
+    if (lastHT.length === 2) {
+      const pairs = viable.filter(c => c.ht.type === 'PAIR');
+      if (pairs.length === 0) return null;
+      pairs.sort((a, b) => HandEvaluator.compare(a.ht, b.ht));
+      return pairs[0].cards;
+    }
+
+    if (lastHT.length === 3) {
+      const triples = viable.filter(c => c.ht.type === 'TRIPLE');
+      if (triples.length === 0) return null;
+      triples.sort((a, b) => HandEvaluator.compare(a.ht, b.ht));
+      return triples[0].cards;
+    }
+
+    if (lastHT.length === 5) {
+      if (lastHT.type === 'STRAIGHT' || lastHT.type === 'FLUSH') {
+        const same = viable.filter(c => c.ht.type === lastHT.type);
+        if (same.length > 0) {
+          same.sort((a, b) => HandEvaluator.compare(a.ht, b.ht));
+          return same[0].cards;
+        }
+        const bigs = viable.filter(c => BIG_HAND_POWER[c.ht.type]);
+        if (bigs.length > 0) {
+          bigs.sort((a, b) => HandEvaluator.compare(a.ht, b.ht));
+          return bigs[0].cards;
+        }
+        return null;
+      }
+      if (lastHT.type === 'FULL_HOUSE') {
+        const fh = viable.filter(c => c.ht.type === 'FULL_HOUSE');
+        if (fh.length > 0) {
+          fh.sort((a, b) => HandEvaluator.compare(a.ht, b.ht));
+          return fh[0].cards;
+        }
+        const bigs = viable.filter(c => BIG_HAND_POWER[c.ht.type]);
+        if (bigs.length > 0) {
+          bigs.sort((a, b) => HandEvaluator.compare(a.ht, b.ht));
+          return bigs[0].cards;
+        }
+        return null;
+      }
+      if (lastHT.type === 'FOUR_OF_A_KIND') {
+        const sf = viable.filter(c => c.ht.type === 'STRAIGHT_FLUSH');
+        if (sf.length > 0) {
+          sf.sort((a, b) => HandEvaluator.compare(a.ht, b.ht));
+          return sf[0].cards;
+        }
+        return null;
+      }
+      if (lastHT.type === 'STRAIGHT_FLUSH') {
+        const sf = viable.filter(c => c.ht.type === 'STRAIGHT_FLUSH');
+        if (sf.length > 0) {
+          sf.sort((a, b) => HandEvaluator.compare(a.ht, b.ht));
+          return sf[0].cards;
+        }
+        return null;
+      }
+      viable.sort((a, b) => HandEvaluator.compare(a.ht, b.ht));
+      return viable[0].cards;
+    }
+
+    viable.sort((a, b) => HandEvaluator.compare(a.ht, b.ht));
+    return viable[0].cards;
+  }
+
+  function decide(hand, lastPlay, isLeader, nextPlayerHandCount, passStreak, isFirstTurn) {
+    const mode = getMode(hand.length);
+    const jqka = GS.playedJQKA || 0;
+
+    if (isLeader) {
+      if (mode === 'fullspeed') {
+        return leaderFullSpeed(hand, isFirstTurn);
+      }
+      if (mode === 'defense') {
+        return leaderDefense(hand, isFirstTurn, jqka);
+      }
+      return leaderStandard(hand, isFirstTurn);
+    }
+
+    return followNonLeader(hand, lastPlay, { nextPlayerHandCount });
+  }
+
+  return { decide };
+})();
+
+// ═══════════════════════════════════════════════════════════
+//  GAME STATE
+// ═══════════════════════════════════════════════════════════
+let GS = {};
+
+function initState() {
+  GS = {
+    phase: 'INIT',
+    hands: [[], [], [], []],
+    currentPlayer: 0,
+    leaderPlayer: -1,
+    lastPlay: { cards: [], player: -1, handType: null },
+    passCount: 0,
+    aiPassStreak: [0, 0, 0, 0],
+    rankings: [],
+    isFirstTurn: true,
+    playedJQKA: 0,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+//  GAME ENGINE
+// ═══════════════════════════════════════════════════════════
+const GameEngine = (() => {
+
+  function transition(phase) { GS.phase = phase; }
+
+  function startGame() {
+    initState();
+    if (typeof UIController !== 'undefined' && UIController.clearPeek) UIController.clearPeek();
+    const deck = DeckModule.shuffle(DeckModule.createDeck());
+    for (let i = 0; i < 52; i++) GS.hands[i % 4].push(deck[i]);
+    GS.hands.forEach(h => h.sort(DeckModule.cardSort));
+
+    let starter = -1;
+    for (let p = 0; p < 4; p++) {
+      if (GS.hands[p].some(c => c.rank === 0 && c.suit === 0)) { starter = p; break; }
+    }
+    GS.leaderPlayer  = starter;
+    GS.currentPlayer = starter;
+    GS.isFirstTurn   = true;
+    transition('TURN_START');
+    UIController.render();
+    scheduleTurn();
+  }
+
+  // ── 修正 1：更新後的牌型壓制邏輯 ──
+  function isLegalPlay(playerIdx, cards) {
+    const ht = HandEvaluator.evaluate(cards);
+    if (!ht.isValid) return { ok: false, reason: '非合法牌型' };
+
+    if (GS.isFirstTurn) {
+      const hasClub3 = cards.some(c => c.rank === 0 && c.suit === 0);
+      if (!hasClub3) return { ok: false, reason: '首輪必須包含 ♣3' };
+    }
+
+    // 領出權（Leader）自由出牌
+    if (GS.lastPlay.cards.length === 0) return { ok: true, ht };
+
+    const last = GS.lastPlay.handType;
+
+    // 定義強勢牌型（大牌）的權重，數字越大越強
+    const BIG_HAND_POWER = { 'FOUR_OF_A_KIND': 1, 'STRAIGHT_FLUSH': 2 };
+
+    const currentPower = BIG_HAND_POWER[ht.type] || 0;
+    const lastPower    = BIG_HAND_POWER[last.type] || 0;
+
+    // 情況 A：上家出的是「大牌」（鐵支或同花順）
+    if (lastPower > 0) {
+      if (currentPower > lastPower) return { ok: true, ht };
+      if (currentPower === lastPower && HandEvaluator.compare(ht, last) > 0) return { ok: true, ht };
+      return { ok: false, reason: '必須出更大的大牌' };
+    }
+
+    // 情況 B：上家出的是「基礎牌型」
+    // 1. 可以用「大牌」直接壓制（鐵支、同花順）
+    if (currentPower > 0) return { ok: true, ht };
+
+    // 2. 基礎牌型必須【型態相同】、【張數相同】且【點數更大】
+    if (ht.type !== last.type || ht.length !== last.length) {
+      return { ok: false, reason: '基礎牌型不可跨型壓制（例如順子不可壓葫蘆）' };
+    }
+
+    if (HandEvaluator.compare(ht, last) <= 0) return { ok: false, reason: '點數不夠大' };
+
+    return { ok: true, ht };
+  }
+
+  function removeFromHand(playerIdx, cards) {
+    const keys = cards.map(c => c.rank * 4 + c.suit);
+    GS.hands[playerIdx] = GS.hands[playerIdx].filter(c => !keys.includes(c.rank * 4 + c.suit));
+  }
+
+  // ── 修正 2：playCards 加入 return 阻斷，防止遊戲結束後繼續執行 ──
+  function playCards(playerIdx, cards) {
+    const result = isLegalPlay(playerIdx, cards);
+    if (!result.ok) return result;
+
+    removeFromHand(playerIdx, cards);
+    cards.forEach(c => {
+      if (c.rank >= 8 && c.rank <= 11) GS.playedJQKA++;
+    });
+    GS.lastPlay = { cards, player: playerIdx, handType: result.ht };
+    GS.passCount = 0;
+    GS.aiPassStreak[playerIdx] = 0;
+    if (GS.isFirstTurn) GS.isFirstTurn = false;
+
+    if (GS.hands[playerIdx].length === 0) {
+      GS.rankings = [playerIdx];
+      transition('GAME_OVER');
+      UIController.render();
+      return { ok: true }; // 重要：直接結束，防止後續 AI 邏輯繼續執行
+    }
+
+    // 只有在遊戲還沒結束的情況下才執行後續動作
+    afterAction(false);
+    return { ok: true };
+  }
+
+  function pass(playerIdx) {
+    GS.passCount++;
+    GS.aiPassStreak[playerIdx] = (GS.aiPassStreak[playerIdx] || 0) + 1;
+    afterAction(true);
+  }
+
+  function afterAction(didPass) {
+    if (GS.passCount >= 3) {
+      GS.leaderPlayer   = GS.lastPlay.player;
+      GS.currentPlayer  = GS.leaderPlayer;
+      GS.lastPlay       = { cards: [], player: -1, handType: null };
+      GS.passCount      = 0;
+    } else {
+      advanceCurrentPlayer();
+    }
+    transition('TURN_START');
+    UIController.render();
+    scheduleTurn();
+  }
+
+  function scheduleTurn() {
+    if (GS.phase !== 'TURN_START') return;
+    if (GS.currentPlayer === 0) {
+      transition('PLAYER_ACTION');
+      UIController.render();
+    } else {
+      transition('AI_ACTION');
+      UIController.render();
+      setTimeout(runAITurn, 700);
+    }
+  }
+
+  function runAITurn() {
+    if (GS.phase !== 'AI_ACTION') return;
+    const p    = GS.currentPlayer;
+    const hand = GS.hands[p];
+    const isLeader = GS.lastPlay.cards.length === 0;
+
+    let next = (p + 1) % 4;
+    while (next !== p && GS.rankings.includes(next)) next = (next + 1) % 4;
+    const nextCount = GS.hands[next].length;
+
+    const chosen = AIModule.decide(
+      hand,
+      GS.lastPlay,
+      isLeader,
+      nextCount,
+      GS.aiPassStreak[p] || 0,
+      GS.isFirstTurn
+    );
+
+    if (!chosen) {
+      UIController.showPassAnim(p);
+      pass(p);
+    } else {
+      playCards(p, chosen);
+    }
+  }
+
+  function advanceCurrentPlayer() {
+    let next = (GS.currentPlayer + 1) % 4;
+    let tries = 0;
+    while (GS.rankings.includes(next) && tries < 4) {
+      next = (next + 1) % 4;
+      tries++;
+    }
+    GS.currentPlayer = next;
+  }
+
+  return { startGame, playCards, pass, isLegalPlay };
+})();
+
+// ═══════════════════════════════════════════════════════════
+//  UI CONTROLLER
+// ═══════════════════════════════════════════════════════════
+const UIController = (() => {
+
+  let selectedCards = [];
+  let peekAiHands = false;
+
+  function clearPeek() {
+    peekAiHands = false;
+  }
+
+  function cardKey(c) { return c.rank * 4 + c.suit; }
+
+  function makeCardEl(card, clickable) {
+    const el  = document.createElement('div');
+    const isRed = card.suit === 1 || card.suit === 2;
+    el.className = 'card ' + (isRed ? 'red' : 'black');
+    const label = RANK_LABEL[card.rank] + SUIT_CHAR[card.suit];
+    el.innerHTML = `<span class="corner">${label}</span><span class="center">${SUIT_CHAR[card.suit]}</span><span class="corner bottom">${label}</span>`;
+    if (clickable) {
+      el.dataset.key = cardKey(card);
+      el.addEventListener('click', () => toggleSelect(card, el));
+    }
+    return el;
+  }
+
+  function toggleSelect(card, el) {
+    if (GS.phase !== 'PLAYER_ACTION') return;
+    const key = cardKey(card);
+    const idx = selectedCards.findIndex(c => cardKey(c) === key);
+    if (idx === -1) { selectedCards.push(card); el.classList.add('selected'); }
+    else            { selectedCards.splice(idx, 1); el.classList.remove('selected'); }
+    refreshButtons();
+  }
+
+  function refreshButtons() {
+    const playBtn = document.getElementById('btn-play');
+    const passBtn = document.getElementById('btn-pass');
+    const isMyTurn = GS.phase === 'PLAYER_ACTION';
+    passBtn.disabled = !isMyTurn;
+    playBtn.disabled = !isMyTurn || selectedCards.length === 0;
+  }
+
+  function render() {
+    renderOpponents();
+    renderMyHand();
+    renderTable();
+    renderStatus();
+    refreshButtons();
+    if (GS.phase === 'GAME_OVER') showGameOver();
+  }
+
+  function renderMyHand() {
+    const el = document.getElementById('my-hand');
+    el.innerHTML = '';
+    selectedCards = [];
+    GS.hands[0].forEach(c => el.appendChild(makeCardEl(c, true)));
+  }
+
+  function renderOpponents() {
+    const peekBtn = document.getElementById('btn-peek');
+    if (peekBtn) {
+      peekBtn.classList.toggle('active', peekAiHands);
+      peekBtn.textContent = peekAiHands ? '隱藏 AI' : '偷看 AI';
+    }
+    for (let p = 1; p <= 3; p++) {
+      const count = GS.hands[p] ? GS.hands[p].length : 0;
+      const nameEl = document.getElementById('name-' + p);
+      const handEl = document.getElementById('hand-' + p);
+      const cntEl  = document.getElementById('count-' + p);
+
+      nameEl.className = 'opponent-name' + (GS.currentPlayer === p && GS.phase === 'AI_ACTION' ? ' active' : '');
+      cntEl.textContent = count + ' 張';
+      handEl.innerHTML = '';
+      handEl.className = 'opponent-cards' + (peekAiHands ? ' peek-hands' : '');
+
+      if (peekAiHands && GS.hands[p]) {
+        GS.hands[p].slice().sort(DeckModule.cardSort).forEach(c => handEl.appendChild(makeCardEl(c, false)));
+      } else {
+        const show = Math.min(count, 8);
+        for (let i = 0; i < show; i++) {
+          const back = document.createElement('div');
+          back.className = 'opponent-card-back';
+          handEl.appendChild(back);
+        }
+      }
+    }
+  }
+
+  function renderTable() {
+    const tableEl = document.getElementById('table-cards');
+    const labelEl = document.getElementById('last-player-label');
+    tableEl.innerHTML = '';
+    if (GS.lastPlay && GS.lastPlay.cards.length > 0) {
+      GS.lastPlay.cards.forEach(c => tableEl.appendChild(makeCardEl(c, false)));
+      labelEl.textContent = PLAYER_NAMES[GS.lastPlay.player] + ' 出牌';
+    } else {
+      labelEl.textContent = '';
+    }
+  }
+
+  function renderStatus() {
+    const el = document.getElementById('status-bar');
+    if (GS.phase === 'GAME_OVER') { el.textContent = '遊戲結束'; return; }
+    const whose = GS.currentPlayer === 0 ? '你的回合' : PLAYER_NAMES[GS.currentPlayer] + ' 思考中...';
+    el.textContent = whose;
+  }
+
+  function showPassAnim(playerIdx) {
+    const anim = document.createElement('div');
+    anim.className = 'pass-anim';
+    anim.textContent = PLAYER_NAMES[playerIdx] + ' Pass';
+    const slots = [null,
+      document.getElementById('slot-1'),
+      document.getElementById('slot-2'),
+      document.getElementById('slot-3'),
+    ];
+    const slot = slots[playerIdx];
+    if (slot) {
+      const rect = slot.getBoundingClientRect();
+      anim.style.left = rect.left + 'px';
+      anim.style.top  = rect.top  + 'px';
+    }
+    document.body.appendChild(anim);
+    setTimeout(() => anim.remove(), 900);
+  }
+
+  function showGameOver() {
+    const list = document.getElementById('ranking-list');
+    const medals = ['🥇','🥈','🥉','💀'];
+    list.innerHTML = GS.rankings.map((p, i) =>
+      `<div class="ranking-row"><span class="medal">${medals[i]}</span><span>${PLAYER_NAMES[p]}</span></div>`
+    ).join('');
+    document.getElementById('overlay').classList.add('show');
+  }
+
+  document.getElementById('btn-play').addEventListener('click', () => {
+    if (selectedCards.length === 0) return;
+    const result = GameEngine.playCards(0, [...selectedCards]);
+    if (!result.ok) {
+      document.getElementById('status-bar').textContent = '❌ ' + result.reason;
+      setTimeout(() => UIController.render(), 1500);
+    }
+  });
+
+  document.getElementById('btn-pass').addEventListener('click', () => {
+    GameEngine.pass(0);
+  });
+
+  document.getElementById('btn-restart').addEventListener('click', () => {
+    document.getElementById('overlay').classList.remove('show');
+    GameEngine.startGame();
+  });
+
+  document.getElementById('btn-peek').addEventListener('click', () => {
+    peekAiHands = !peekAiHands;
+    render();
+  });
+
+  return { render, showPassAnim, clearPeek };
+})();
+
+// ═══════════════════════════════════════════════════════════
+//  START
+// ═══════════════════════════════════════════════════════════
+GameEngine.startGame();
+</script>
+</body>
+</html>
